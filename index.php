@@ -46,15 +46,20 @@ $responseContent = $response->getBody()->getContents();
 preg_match('<!DOCTYPE html>', $responseContent, $match);
 //get only html body
 if (sizeof($match) > 0) {
-
-
-    $t = updateContent($responseContent);
-
+    $body = updateContent($responseContent);
+    $stream = bodyHtmlToStream($body);
+    $responseOut = new Response($stream, 200, $response->getHeaders());
 }
 
 
+
 // Output response to the browser.
-(new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
+//(new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
+if(isset($responseOut)) {
+    (new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($responseOut);
+} else {
+    (new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
+}
 
 function updateContent($responseContent){
     libxml_use_internal_errors(true);
@@ -74,45 +79,12 @@ function updateContent($responseContent){
     return $dom->saveHTML();
 }
 
+function bodyHtmlToStream($html) {
+    $string = $html;
 
+    $stream = fopen('php://memory','r+');
+    fwrite($stream, $string);
+    rewind($stream);
 
-/**
- * Forward the request to the target url and return the response.
- *
- * @param  string $target
- * @throws UnexpectedValueException
- * @return ResponseInterface
- */
-function replaceText($target, $request, $filters)
-{
-    if ($request === null) {
-        throw new UnexpectedValueException('Missing request instance.');
-    }
-
-    $target = new Uri($target);
-
-    // Overwrite target scheme, host and port.
-    $uri = $request->getUri()
-        ->withScheme($target->getScheme())
-        ->withHost($target->getHost())
-        ->withPort($target->getPort());
-
-    // Check for subdirectory.
-    if ($path = $target->getPath()) {
-        $uri = $uri->withPath(rtrim($path, '/') . '/' . ltrim($uri->getPath(), '/'));
-    }
-
-    $request = $request->withUri($uri);
-
-    $stack = $filters;
-
-    $stack[] = function (RequestInterface $request, ResponseInterface $response, callable $next) {
-        $response = $this->adapter->send($request);
-
-        return $next($request, $response);
-    };
-
-    $relay = (new RelayBuilder)->newInstance($stack);
-
-    return $relay($request, new Response);
+    return $stream;
 }
