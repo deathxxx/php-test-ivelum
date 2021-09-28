@@ -73,9 +73,10 @@ function updateContent($responseContent){
             if(strlen(trim($text->nodeValue)) == 6) {
                 $text->nodeValue = $text->nodeValue.'™';
             } else {
-                //            error_log(trim($text->nodeValue));
                 preg_match('/(\b\S{6,6}\b)/',trim($text->nodeValue), $matches);
-                error_log(var_export($matches,1));
+                //            error_log(trim($text->nodeValue));
+                $text->nodeValue = preg_replace('/(\b\S{6,6}\b)/','$1™', $text->nodeValue);
+//                error_log(var_export($matches,1));
             }
         }
     }
