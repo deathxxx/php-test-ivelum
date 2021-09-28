@@ -25,14 +25,12 @@ $url = "https://habr.com/ru/company/yandex/blog/258673/";
 $urlStart = "https://habr.com";
 //$response = $proxy->forward($request)->to($url);
 $urlRequest = $urlStart . $_SERVER['REQUEST_URI'];
-//error_log($urlRequest);
-//die;
 $response = $proxy->forward($request)->to($urlStart);
 
 
 $actual_link = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 $requestUri = $_SERVER['REQUEST_URI'];
-error_log($actual_link);
+//error_log($actual_link);
 //error_log($requestUri);
 //$time = time();
 $time = microtime() . GUID();
@@ -80,7 +78,12 @@ if (sizeof($match) > 0) {
     foreach ($xpath->query('//text()') as $text) {
         if (trim($text->nodeValue)) {
             if(strlen($text->nodeValue) == 6) {
-                $text->nodeValue = ucwords($text->nodeValue);
+//™
+                error_log($text->nodeValue);
+//                $text->nodeValue = ucwords($text->nodeValue);
+                $text->nodeValue = $text->nodeValue.'™';
+            } else {
+                error_log('else');
             }
         }
     }
