@@ -3,10 +3,20 @@
 
 require __DIR__ . '/vendor/autoload.php';
 
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use Laminas\Diactoros\RequestFactory;
+use Laminas\Diactoros\Response;
 use Laminas\Diactoros\ServerRequestFactory;
+use Laminas\Diactoros\Uri;
+use Proxy\Exception\UnexpectedValueException;
 use Proxy\Proxy;
 use Proxy\Adapter\Guzzle\GuzzleAdapter;
 use Proxy\Filter\RemoveEncodingFilter;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Relay\RelayBuilder;
 
 // Create a PSR7 request based on the current browser request.
 $request = ServerRequestFactory::fromGlobals();
@@ -14,8 +24,11 @@ $request = ServerRequestFactory::fromGlobals();
 // Create a guzzle client
 $guzzle = new GuzzleHttp\Client();
 
+//Create Adapter
+$adapterL = new  GuzzleAdapter($guzzle);
+
 // Create the proxy instance
-$proxy = new Proxy(new GuzzleAdapter($guzzle));
+$proxy = new Proxy($adapterL);
 
 // Add a response filter that removes the encoding headers.
 $proxy->filter(new RemoveEncodingFilter());
@@ -70,6 +83,21 @@ if (sizeof($match) > 0) {
     file_put_contents('reqex-words.txt', var_export($matchWords, 1));
 
 
+
+    $t = updateContent($responseContent);
+
+    file_put_contents('domhtml-save.txt', var_export($t, 1));
+
+//    $response->setBody($t);
+
+
+}
+
+
+// Output response to the browser.
+(new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
+
+function updateContent($responseContent){
     libxml_use_internal_errors(true);
     $dom = new DomDocument();
     $dom->loadHTML($responseContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
@@ -88,19 +116,8 @@ if (sizeof($match) > 0) {
         }
     }
 
-    $t = $dom->saveHTML();
-
-    file_put_contents('domhtml-save.txt', var_export($t, 1));
-
-//    $response->setBody($t);
-
-
+    return $dom->saveHTML();
 }
-
-
-// Output response to the browser.
-(new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
-
 
 function GUID()
 {
@@ -109,4 +126,85 @@ function GUID()
     }
 
     return sprintf('%04X%04X-%04X-%04X-%04X-%04X%04X%04X', mt_rand(0, 65535), mt_rand(0, 65535), mt_rand(0, 65535), mt_rand(16384, 20479), mt_rand(32768, 49151), mt_rand(0, 65535), mt_rand(0, 65535), mt_rand(0, 65535));
+}
+
+
+
+
+/**
+ * @test
+ * @covers \Susanne\Examples\Services\MyService::getData
+ * @covers \Susanne\Examples\Services\MyService::__construct
+ * @covers \Susanne\Examples\Services\MyService::sendAuthorizedRequest
+ */
+function getDataReturnsDataFromAPI()
+{
+    $historyContainer = [];
+    $client = createClientWithHistory(
+        [new Response(200, [], file_get_contents(__DIR__ . '/Fixtures/200_data_response.json'))],
+        $historyContainer
+    );
+
+    $myService = new MyService(new RequestFactory(), $client);
+    $result = $myService->getData();
+
+//    self::assertEquals($expected, $result);
+//    self::assertCount(1, $historyContainer);
+//    self::assertSame('https://example.com/api/', (string)$historyContainer[0]['request']->getUri());
+}
+
+function createClientWithHistory(array $responses, array &$historyContainer)
+{
+    $handlerStack = HandlerStack::create(
+        new MockHandler([
+            $responses,
+        ])
+    );
+    $history = Middleware::history($historyContainer);
+    $handlerStack->push($history);
+    return new Client(['handler' => $handlerStack]);
+}
+
+
+
+
+/**
+ * Forward the request to the target url and return the response.
+ *
+ * @param  string $target
+ * @throws UnexpectedValueException
+ * @return ResponseInterface
+ */
+function replaceText($target, $request, $filters)
+{
+    if ($request === null) {
+        throw new UnexpectedValueException('Missing request instance.');
+    }
+
+    $target = new Uri($target);
+
+    // Overwrite target scheme, host and port.
+    $uri = $request->getUri()
+        ->withScheme($target->getScheme())
+        ->withHost($target->getHost())
+        ->withPort($target->getPort());
+
+    // Check for subdirectory.
+    if ($path = $target->getPath()) {
+        $uri = $uri->withPath(rtrim($path, '/') . '/' . ltrim($uri->getPath(), '/'));
+    }
+
+    $request = $request->withUri($uri);
+
+    $stack = $filters;
+
+    $stack[] = function (RequestInterface $request, ResponseInterface $response, callable $next) {
+        $response = $this->adapter->send($request);
+
+        return $next($request, $response);
+    };
+
+    $relay = (new RelayBuilder)->newInstance($stack);
+
+    return $relay($request, new Response);
 }
