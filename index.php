@@ -2,6 +2,7 @@
 
 
 require __DIR__ . '/vendor/autoload.php';
+require 'mylib.php';
 
 use Laminas\Diactoros\Response;
 use Laminas\Diactoros\ServerRequestFactory;
@@ -16,6 +17,8 @@ use Relay\RelayBuilder;
 
 // Create a PSR7 request based on the current browser request.
 $request = ServerRequestFactory::fromGlobals();
+//error_log(var_export($request,1));
+file_put_contents('_11111/'.GUID().'.txt',var_export($request,1));
 
 // Create a guzzle client
 $guzzle = new GuzzleHttp\Client();
@@ -36,12 +39,34 @@ $urlStart = "https://habr.com";
 $urlRequest = $urlStart . $_SERVER['REQUEST_URI'];
 $response = $proxy->forward($request)->to($urlStart);
 
+//orig
+
+//try {
+//    // Forward the request and get the response.
+//    $response = $proxy->forward($request)->to($urlStart);
+//
+//    // Output response to the browser.
+//    (new Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
+//} catch(\GuzzleHttp\Exception\BadResponseException $e) {
+//    // Correct way to handle bad responses
+//    (new Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($e->getResponse());
+//}
+//die;
+//orig
+
 
 $actual_link = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 $requestUri = $_SERVER['REQUEST_URI'];
 
 
-//ge content
+//error_log(var_export($_COOKIE,1));
+//file_put_contents('_11111/'.GUID().'.txt',var_export($_COOKIE,1));
+//echo "<pre>";
+//var_dump($response->getHeaders()['X-Request-Id']);
+//error_log(var_export($response->getHeaders()['X-Request-Id'],1));
+//die;
+//error_log(var_export($response['X-Request-Id'][0],1));
+//get content
 $responseContent = $response->getBody()->getContents();
 preg_match('<!DOCTYPE html>', $responseContent, $match);
 //get only html body
@@ -49,6 +74,8 @@ if (sizeof($match) > 0) {
     $body = updateContent($responseContent);
     $stream = bodyHtmlToStream($body);
     $responseOut = new Response($stream, 200, $response->getHeaders());
+
+
 }
 
 
@@ -56,8 +83,16 @@ if (sizeof($match) > 0) {
 // Output response to the browser.
 //(new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
 if(isset($responseOut)) {
+//    $dir = time();
+//    mkdir($dir);
+//    file_put_contents($dir.'/header'.GUID().'.txt', var_export($responseOut,1));
+
     (new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($responseOut);
 } else {
+//    $dir = time();
+//    mkdir($dir);
+//    file_put_contents($dir.'/header'.GUID().'.txt', var_export($response,1));
+
     (new \Laminas\HttpHandlerRunner\Emitter\SapiEmitter)->emit($response);
 }
 
